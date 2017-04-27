@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -65,6 +66,7 @@ class DynamicTestGenerationTests extends AbstractJupiterTestEngineTests {
 	}
 
 	@Test
+	@Disabled
 	void dynamicTestsAreExecutedFromStream() {
 		LauncherDiscoveryRequest request = request().selectors(
 			DiscoverySelectors.selectMethod(MyDynamicTestCase.class, "dynamicStream")).build();

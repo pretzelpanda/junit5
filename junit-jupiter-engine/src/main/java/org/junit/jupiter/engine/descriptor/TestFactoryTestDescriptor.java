@@ -13,9 +13,11 @@ package org.junit.jupiter.engine.descriptor;
 import static org.junit.platform.commons.meta.API.Usage.Internal;
 
 import java.lang.reflect.Method;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.DynamicContainer;
+import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.extension.TestExtensionContext;
 import org.junit.jupiter.engine.execution.ExecutableInvoker;
@@ -25,6 +27,7 @@ import org.junit.platform.commons.meta.API;
 import org.junit.platform.commons.util.CollectionUtils;
 import org.junit.platform.commons.util.PreconditionViolationException;
 import org.junit.platform.engine.TestDescriptor;
+import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.UniqueId;
 
 /**
@@ -36,6 +39,7 @@ import org.junit.platform.engine.UniqueId;
 @API(Internal)
 public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 
+	public static final String DYNAMIC_CONTAINER_SEGMENT_TYPE = "dynamic-container";
 	public static final String DYNAMIC_TEST_SEGMENT_TYPE = "dynamic-test";
 
 	private static final ExecutableInvoker executableInvoker = new ExecutableInvoker();
@@ -72,10 +76,8 @@ public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 			Object testFactoryMethodResult = executableInvoker.invoke(getTestMethod(), instance, testExtensionContext,
 				context.getExtensionRegistry());
 
-			try (Stream<DynamicTest> dynamicTestStream = toDynamicTestStream(testFactoryMethodResult)) {
-				AtomicInteger index = new AtomicInteger();
-				dynamicTestStream.forEach(
-					dynamicTest -> registerAndExecute(dynamicTest, index.incrementAndGet(), dynamicTestExecutor));
+			try (Stream<DynamicNode> dynamicNodeStream = toDynamicNodeStream(testFactoryMethodResult)) {
+				dynamicNodeStream.forEach(node -> registerAndExecute(this, node, dynamicTestExecutor));
 			}
 			catch (ClassCastException ex) {
 				throw invalidReturnTypeException(ex);
@@ -84,26 +86,41 @@ public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 	}
 
 	@SuppressWarnings("unchecked")
-	private Stream<DynamicTest> toDynamicTestStream(Object testFactoryMethodResult) {
+	private Stream<DynamicNode> toDynamicNodeStream(Object testFactoryMethodResult) {
 		try {
-			return (Stream<DynamicTest>) CollectionUtils.toStream(testFactoryMethodResult);
+			return (Stream<DynamicNode>) CollectionUtils.toStream(testFactoryMethodResult);
 		}
 		catch (PreconditionViolationException ex) {
 			throw invalidReturnTypeException(ex);
 		}
 	}
 
-	private void registerAndExecute(DynamicTest dynamicTest, int index, DynamicTestExecutor dynamicTestExecutor) {
-		UniqueId uniqueId = getUniqueId().append(DYNAMIC_TEST_SEGMENT_TYPE, "#" + index);
-		TestDescriptor descriptor = new DynamicTestTestDescriptor(uniqueId, dynamicTest, getSource().get());
-		addChild(descriptor);
-		dynamicTestExecutor.execute(descriptor);
+	private void registerAndExecute(TestDescriptor parent, DynamicNode node, DynamicTestExecutor executor) {
+		String hash = node.getDisplayName() + "#" + UUID.randomUUID().toString();
+		TestSource source = getSource().orElseThrow(AssertionError::new);
+		// System.out.println("registerAndExecute " + parent.getDisplayName() + " -> " + node.getDisplayName());
+		if (node instanceof DynamicTest) {
+			DynamicTest test = (DynamicTest) node;
+			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_TEST_SEGMENT_TYPE, hash);
+			TestDescriptor descriptor = new DynamicTestTestDescriptor(uniqueId, test, source);
+			parent.addChild(descriptor);
+			executor.execute(descriptor);
+			return;
+		}
+		DynamicContainer container = (DynamicContainer) node;
+		UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_CONTAINER_SEGMENT_TYPE, hash);
+		TestDescriptor descriptor = new DynamicContainerTestDescriptor(uniqueId, container, source);
+		for (DynamicNode childNode : container.getDynamicNodes()) {
+			registerAndExecute(descriptor, childNode, executor);
+		}
+		parent.addChild(descriptor);
+		executor.execute(descriptor);
 	}
 
 	private JUnitException invalidReturnTypeException(Throwable cause) {
 		String message = String.format(
 			"@TestFactory method [%s] must return a Stream, Collection, Iterable, or Iterator of %s.",
-			getTestMethod().toGenericString(), DynamicTest.class.getName());
+			getTestMethod().toGenericString(), DynamicNode.class.getName());
 		return new JUnitException(message, cause);
 	}
 
