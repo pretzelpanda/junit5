@@ -45,26 +45,24 @@ class DynamicTestsDemo {
 	}
 
 	@TestFactory
-	// @Disabled("work-in-progress")
-	List<DynamicNode> arbitrary() {
-		Executable noop = () -> {
-		};
+	List<DynamicNode> dynamicTestsWithContainers() {
+		Executable alwaysTrue = () -> assertTrue(true);
 
 		List<DynamicNode> nestedOne = new ArrayList<>();
-		nestedOne.add(dynamicTest("nested-1", noop));
-		nestedOne.add(dynamicTest("nested-2", noop));
+		nestedOne.add(dynamicTest("nested-1", alwaysTrue));
+		nestedOne.add(dynamicTest("nested-2", alwaysTrue));
 		List<DynamicNode> nestedTwo = new ArrayList<>();
-		nestedTwo.add(dynamicTest("nested-3", noop));
+		nestedTwo.add(dynamicTest("nested-3", alwaysTrue));
 		nestedTwo.add(dynamicContainer("2nd level", dynamicTestsFromIterable()));
-		nestedTwo.add(dynamicTest("nested-4", noop));
+		nestedTwo.add(dynamicTest("nested-4", alwaysTrue));
 		nestedTwo.add(dynamicContainer("level II", dynamicTestsFromStream()));
 
 		List<DynamicNode> nodes = new ArrayList<>();
-		nodes.add(dynamicTest("begin", noop));
+		nodes.add(dynamicTest("begin", alwaysTrue));
 		nodes.add(dynamicContainer("container one", nestedOne));
-		nodes.add(dynamicTest("middle", noop));
+		nodes.add(dynamicTest("middle", alwaysTrue));
 		nodes.add(dynamicContainer("container two", nestedTwo));
-		nodes.add(dynamicTest("end", noop));
+		nodes.add(dynamicTest("end", alwaysTrue));
 		return nodes;
 	}
 

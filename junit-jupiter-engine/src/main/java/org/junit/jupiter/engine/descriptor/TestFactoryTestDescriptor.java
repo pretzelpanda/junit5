@@ -13,7 +13,7 @@ package org.junit.jupiter.engine.descriptor;
 import static org.junit.platform.commons.meta.API.Usage.Internal;
 
 import java.lang.reflect.Method;
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DynamicContainer;
@@ -26,12 +26,11 @@ import org.junit.platform.commons.JUnitException;
 import org.junit.platform.commons.meta.API;
 import org.junit.platform.commons.util.CollectionUtils;
 import org.junit.platform.commons.util.PreconditionViolationException;
-import org.junit.platform.engine.TestDescriptor;
 import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.UniqueId;
 
 /**
- * {@link TestDescriptor} for {@link org.junit.jupiter.api.TestFactory @TestFactory}
+ * {@link org.junit.platform.engine.TestDescriptor TestDescriptor} for {@link org.junit.jupiter.api.TestFactory @TestFactory}
  * methods.
  *
  * @since 5.0
@@ -77,8 +76,9 @@ public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 				context.getExtensionRegistry());
 			TestSource source = getSource().orElseThrow(AssertionError::new);
 			try (Stream<DynamicNode> dynamicNodeStream = toDynamicNodeStream(testFactoryMethodResult)) {
+				AtomicInteger index = new AtomicInteger();
 				dynamicNodeStream.forEach(node -> {
-					TestDescriptor descriptor = toDescriptor(this, node, source);
+					JupiterTestDescriptor descriptor = createDescriptor(this, node, index, source);
 					dynamicTestExecutor.execute(descriptor);
 				});
 			}
@@ -98,18 +98,19 @@ public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 		}
 	}
 
-	static TestDescriptor toDescriptor(TestDescriptor parent, DynamicNode node, TestSource source) {
-		String hash = node.getDisplayName() + "#" + UUID.randomUUID().toString();
-		TestDescriptor descriptor;
+	static JupiterTestDescriptor createDescriptor(JupiterTestDescriptor parent, DynamicNode node, AtomicInteger index,
+			TestSource source) {
+		String uniqueValue = "#" + index.incrementAndGet();
+		JupiterTestDescriptor descriptor;
 		if (node instanceof DynamicTest) {
 			DynamicTest test = (DynamicTest) node;
-			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_TEST_SEGMENT_TYPE, hash);
+			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_TEST_SEGMENT_TYPE, uniqueValue);
 			descriptor = new DynamicTestTestDescriptor(uniqueId, test, source);
 		}
 		else {
-			DynamicContainer container = (DynamicContainer) node;
-			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_CONTAINER_SEGMENT_TYPE, hash);
-			descriptor = new DynamicContainerTestDescriptor(uniqueId, container, source);
+			DynamicContainer container = (DynamicContainer) node; // ClassCastException is an error.
+			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_CONTAINER_SEGMENT_TYPE, uniqueValue);
+			descriptor = new DynamicContainerTestDescriptor(uniqueId, container, index, source);
 		}
 		parent.addChild(descriptor);
 		return descriptor;
