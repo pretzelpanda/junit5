@@ -10,7 +10,7 @@
 
 package org.junit.jupiter.engine.descriptor;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import static org.junit.jupiter.engine.descriptor.TestFactoryTestDescriptor.createDynamicDescriptor;
 
 import org.junit.jupiter.api.DynamicContainer;
 import org.junit.jupiter.api.DynamicNode;
@@ -27,14 +27,13 @@ import org.junit.platform.engine.UniqueId;
 class DynamicContainerTestDescriptor extends JupiterTestDescriptor {
 
 	private final DynamicContainer dynamicContainer;
-	private final AtomicInteger index;
+	private final TestSource testSource;
 
-	DynamicContainerTestDescriptor(UniqueId uniqueId, DynamicContainer dynamicContainer, AtomicInteger index,
-			TestSource source) {
+	DynamicContainerTestDescriptor(UniqueId uniqueId, DynamicContainer dynamicContainer, TestSource testSource) {
 		super(uniqueId, dynamicContainer.getDisplayName());
 		this.dynamicContainer = dynamicContainer;
-		this.index = index;
-		setSource(source);
+		this.testSource = testSource;
+		setSource(testSource);
 	}
 
 	@Override
@@ -50,9 +49,9 @@ class DynamicContainerTestDescriptor extends JupiterTestDescriptor {
 	@Override
 	public JupiterEngineExecutionContext execute(JupiterEngineExecutionContext context,
 			DynamicTestExecutor dynamicTestExecutor) throws Exception {
-		TestSource source = getSource().orElseThrow(AssertionError::new);
+		int index = 1;
 		for (DynamicNode childNode : dynamicContainer.getDynamicNodes()) {
-			dynamicTestExecutor.execute(TestFactoryTestDescriptor.createDescriptor(this, childNode, index, source));
+			dynamicTestExecutor.execute(createDynamicDescriptor(this, childNode, index++, testSource));
 		}
 		return context;
 	}
