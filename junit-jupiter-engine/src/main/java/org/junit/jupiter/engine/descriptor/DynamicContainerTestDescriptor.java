@@ -11,6 +11,8 @@
 package org.junit.jupiter.engine.descriptor;
 
 import org.junit.jupiter.api.DynamicContainer;
+import org.junit.jupiter.api.DynamicNode;
+import org.junit.jupiter.engine.execution.JupiterEngineExecutionContext;
 import org.junit.platform.engine.TestDescriptor;
 import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.UniqueId;
@@ -22,8 +24,11 @@ import org.junit.platform.engine.UniqueId;
  */
 class DynamicContainerTestDescriptor extends JupiterTestDescriptor {
 
-	DynamicContainerTestDescriptor(UniqueId uniqueId, DynamicContainer dynamicTest, TestSource source) {
-		super(uniqueId, dynamicTest.getDisplayName());
+	private final DynamicContainer container;
+
+	DynamicContainerTestDescriptor(UniqueId uniqueId, DynamicContainer dynamicContainer, TestSource source) {
+		super(uniqueId, dynamicContainer.getDisplayName());
+		this.container = dynamicContainer;
 		setSource(source);
 	}
 
@@ -32,4 +37,18 @@ class DynamicContainerTestDescriptor extends JupiterTestDescriptor {
 		return Type.CONTAINER;
 	}
 
+	@Override
+	public boolean isLeaf() {
+		return true; // WHY?!
+	}
+
+	@Override
+	public JupiterEngineExecutionContext execute(JupiterEngineExecutionContext context,
+			DynamicTestExecutor dynamicTestExecutor) throws Exception {
+		TestSource source = getSource().orElseThrow(AssertionError::new);
+		for (DynamicNode childNode : container.getDynamicNodes()) {
+			dynamicTestExecutor.execute(TestFactoryTestDescriptor.toDescriptor(this, childNode, source));
+		}
+		return context;
+	}
 }

@@ -75,9 +75,12 @@ public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 			Object instance = testExtensionContext.getTestInstance();
 			Object testFactoryMethodResult = executableInvoker.invoke(getTestMethod(), instance, testExtensionContext,
 				context.getExtensionRegistry());
-
+			TestSource source = getSource().orElseThrow(AssertionError::new);
 			try (Stream<DynamicNode> dynamicNodeStream = toDynamicNodeStream(testFactoryMethodResult)) {
-				dynamicNodeStream.forEach(node -> registerAndExecute(this, node, dynamicTestExecutor));
+				dynamicNodeStream.forEach(node -> {
+					TestDescriptor descriptor = toDescriptor(this, node, source);
+					dynamicTestExecutor.execute(descriptor);
+				});
 			}
 			catch (ClassCastException ex) {
 				throw invalidReturnTypeException(ex);
@@ -95,26 +98,22 @@ public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 		}
 	}
 
-	private void registerAndExecute(TestDescriptor parent, DynamicNode node, DynamicTestExecutor executor) {
+	static TestDescriptor toDescriptor(TestDescriptor parent, DynamicNode node, TestSource source) {
 		String hash = node.getDisplayName() + "#" + UUID.randomUUID().toString();
-		TestSource source = getSource().orElseThrow(AssertionError::new);
-		// System.out.println("registerAndExecute " + parent.getDisplayName() + " -> " + node.getDisplayName());
+		TestDescriptor descriptor;
+		System.out.println(parent.getDisplayName() + " -> " + node.getDisplayName());
 		if (node instanceof DynamicTest) {
 			DynamicTest test = (DynamicTest) node;
 			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_TEST_SEGMENT_TYPE, hash);
-			TestDescriptor descriptor = new DynamicTestTestDescriptor(uniqueId, test, source);
-			parent.addChild(descriptor);
-			executor.execute(descriptor);
-			return;
+			descriptor = new DynamicTestTestDescriptor(uniqueId, test, source);
 		}
-		DynamicContainer container = (DynamicContainer) node;
-		UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_CONTAINER_SEGMENT_TYPE, hash);
-		TestDescriptor descriptor = new DynamicContainerTestDescriptor(uniqueId, container, source);
-		for (DynamicNode childNode : container.getDynamicNodes()) {
-			registerAndExecute(descriptor, childNode, executor);
+		else {
+			DynamicContainer container = (DynamicContainer) node;
+			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_CONTAINER_SEGMENT_TYPE, hash);
+			descriptor = new DynamicContainerTestDescriptor(uniqueId, container, source);
 		}
 		parent.addChild(descriptor);
-		executor.execute(descriptor);
+		return descriptor;
 	}
 
 	private JUnitException invalidReturnTypeException(Throwable cause) {
