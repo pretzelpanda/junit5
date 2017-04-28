@@ -101,7 +101,6 @@ public class TestFactoryTestDescriptor extends MethodTestDescriptor {
 	static TestDescriptor toDescriptor(TestDescriptor parent, DynamicNode node, TestSource source) {
 		String hash = node.getDisplayName() + "#" + UUID.randomUUID().toString();
 		TestDescriptor descriptor;
-		System.out.println(parent.getDisplayName() + " -> " + node.getDisplayName());
 		if (node instanceof DynamicTest) {
 			DynamicTest test = (DynamicTest) node;
 			UniqueId uniqueId = parent.getUniqueId().append(DYNAMIC_TEST_SEGMENT_TYPE, hash);
